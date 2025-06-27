@@ -3,36 +3,69 @@ import base64
 import sys
 import random
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, Gdk, Pango
+from gi.repository import Gtk, Gdk
+from cryptography.fernet import Fernet
+import hashlib
 
 def AddEntry(label, password):
     toadd = label
-    toadd += '''\%%'''
+    toadd += "\\%%"
     toadd += password
     toadd = encrypt(toadd, masterpass)
     with open(filepath, "a") as file:
         file.write("\n" + toadd)
+def get_fernet_key(key):
+    # Derive a Fernet key from the user key (masterpass)
+    digest = hashlib.sha256(key.encode('utf-8')).digest()
+    return base64.urlsafe_b64encode(digest)
+
 def encrypt(string, key):
-    final = str("")
-    where = 0
-    step = 0
-    out = str("")
-    inpt = string
+    # --- Original "spaghetti" encryption ---
+    encrypted_str = ""
+    salt_insert_index = 0
+    current_index = 0
+    output = ""
+    input_str = string
     salt = str(key.encode('utf-8'))[2:-1]
-    b64 = str(base64.b64encode(inpt.encode('utf-8')))
-    while where < 1:
-        where = random.randint(2, len(b64) - 1)
-    while not step - 1== where:
-        out += b64[step]
-        step += 1
-    out += salt
-    goal = len(b64) + len(salt)
-    while not len(out) == goal:
-        out += b64[step]
-        step += 1
-    return str(base64.b64encode(out.encode('utf-8')))[2:-1]
+    b64_encoded = str(base64.b64encode(input_str.encode('utf-8')))
+    while salt_insert_index < 1:
+        salt_insert_index = random.randint(2, len(b64_encoded) - 1)
+    while not current_index - 1 == salt_insert_index:
+        output += b64_encoded[current_index]
+        current_index += 1
+    output += salt
+    total_length = len(b64_encoded) + len(salt)
+    while not len(output) == total_length:
+        output += b64_encoded[current_index]
+        current_index += 1
+    spaghetti_encrypted = str(base64.b64encode(output.encode('utf-8')))[2:-1]
+
+    # --- Secure Fernet encryption of the spaghetti-encrypted string ---
+    fernet = Fernet(get_fernet_key(key))
+    fernet_encrypted = fernet.encrypt(spaghetti_encrypted.encode('utf-8')).decode('utf-8')
+
+    # Return only the Fernet-encrypted spaghetti-encrypted string
+    return fernet_encrypted
 
 def decrypt(string, key):
+    # Try Fernet decryption first (should always be Fernet-encrypted spaghetti)
+    try:
+        fernet = Fernet(get_fernet_key(key))
+        spaghetti_encrypted = fernet.decrypt(string.encode('utf-8')).decode('utf-8')
+    except Exception:
+        dialog = Gtk.MessageDialog(
+            transient_for=None,
+            flags=0,
+            message_type=Gtk.MessageType.ERROR,
+            buttons=Gtk.ButtonsType.CLOSE,
+            text="Invalid key or invalid string.",
+        )
+        dialog.format_secondary_text("The provided key or string is invalid. The application will now exit.")
+        dialog.run()
+        dialog.destroy()
+        Gtk.main_quit()
+
+    # --- Original "spaghetti" decryption ---
     def is_base64(s):
         if not isinstance(s, str) or not s:
             return False
@@ -43,26 +76,16 @@ def decrypt(string, key):
         except:
             return False
 
-    encoded = string
-    if True:
-        decode = base64.b64decode(encoded.encode('utf-8'))
-    else:
-        print("Invalid string. Exiting...")
-        sys.exit()
-    #Remove padding to prevent brute-forcing everything before it
-
-    # Check for the FULL salt string representation (b'...') 
+    encoded = spaghetti_encrypted
+    decode = base64.b64decode(encoded.encode('utf-8'))
     decoded_str = decode.decode()
-    salt_str = str(key)  # This matches how salt was inserted
+    salt_str = str(key.encode('utf-8'))[2:-1]
     if salt_str in decoded_str:
-        # Remove the entire salt string
         decode1 = decoded_str.replace(salt_str, "", 1)
     else:
         print("Invalid key or invalid string. Exiting...")
         sys.exit()
-
-    # Extract base64 payload from Python's bytes literal format
-    final = base64.b64decode(decode1[2:-1].encode('utf-8')).decode('utf-8')
+    final = base64.b64decode(decode1.encode('utf-8')).decode('utf-8')
     return final
 
 def inpt(message):
@@ -212,12 +235,11 @@ class SecureListViewer(Gtk.Window):
                     hidden_text = parts[1] if len(parts) > 1 else ""
 
                     self.add_entry_row(label_text, hidden_text)
+        except FileNotFoundError:
+            print("File doesn't exist")
         except Exception as e:
-            if("No such file" in str(e)):
-                print("File doesnt exist")
-            else:
-                error_label = Gtk.Label(label=f"Error: {e}")
-                self.vbox.pack_start(error_label, False, False, 0)
+            error_label = Gtk.Label(label=f"Error: {e}")
+            self.vbox.pack_start(error_label, False, False, 0)
 
         self.show_all()
 
