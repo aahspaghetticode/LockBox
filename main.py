@@ -21,7 +21,7 @@ def get_fernet_key(key):
 
 def encrypt(string, key):
     # --- Original "spaghetti" encryption ---
-    encrypted_str = ""
+    _encrypted_str = ""
     salt_insert_index = 0
     current_index = 0
     output = ""
@@ -66,7 +66,7 @@ def decrypt(string, key):
         Gtk.main_quit()
 
     # --- Original "spaghetti" decryption ---
-    def is_base64(s):
+    def _is_base64(s):
         if not isinstance(s, str) or not s:
             return False
         try:
@@ -143,7 +143,7 @@ def inpt(message):
 
             self.user_input = None
 
-        def on_window_resize(self, widget, event):
+        def on_window_resize(self, _widget, event):
             # Height management
             h = min(event.height // 6, self.max_widget_height)
             self.hbox.set_size_request(-1, h)
@@ -169,7 +169,7 @@ def inpt(message):
             return False
 
 
-        def on_submit(self, widget):
+        def on_submit(self, _widget):
             self.user_input = self.entry.get_text()
             Gtk.main_quit()
 
@@ -281,7 +281,7 @@ class SecureListViewer(Gtk.Window):
         entry.set_visibility(visible)
         button.set_label("Hide" if visible else "Show")
 
-    def on_add_clicked(self, button):
+    def on_add_clicked(self, _button):
         dialog = Gtk.Dialog(title="Add New Entry", transient_for=self, flags=0)
         dialog.add_buttons(
             Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL,
